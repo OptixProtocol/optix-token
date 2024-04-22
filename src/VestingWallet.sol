@@ -7,6 +7,17 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import {Test, console2} from "forge-std/Test.sol";
 
 
+/// @notice Struct defining a vesting schedule
+/// @dev Contains all the parameters necessary for calculating vested amounts
+struct VestingSchedule {
+    uint startTimeInSec;
+    uint cliffTimeInSec;
+    uint endTimeInSec;
+    uint unlockAmount;
+    uint totalAmount;
+    uint totalAmountWithdrawn;
+}
+
 /// @title VestingWallet
 /// @notice Manages the vesting of ERC20 tokens for beneficiaries with a customizable vesting schedule.
 contract VestingWallet is Ownable {
@@ -43,27 +54,20 @@ contract VestingWallet is Ownable {
     // event AddressChangeRequested(address indexed oldRegisteredAddress, address indexed newRegisteredAddress);
     event AddressChanged(address indexed oldRegisteredAddress, address indexed newRegisteredAddress);
 
-    /// @notice Struct defining a vesting schedule
-    /// @dev Contains all the parameters necessary for calculating vested amounts
-    struct VestingSchedule {
-        uint startTimeInSec;
-        uint cliffTimeInSec;
-        uint endTimeInSec;
-        uint unlockAmount;
-        uint totalAmount;
-        uint totalAmountWithdrawn;
-    }
-
-
-
     modifier pendingAddressChangeRequest(address target) {
         require(addressChangeRequests[target] != address(0),"addressChangeRequests[target] != address(0)");
         _;
     }
 
     /// @dev Ensures the caller is past the cliff time of their vesting schedule
+    modifier pastStartTime(address target) {
+        require(block.timestamp >= schedules[target].startTimeInSec, "Vesting: start time not reached");
+        _;
+    }
+
+    /// @dev Ensures the caller is past the cliff time of their vesting schedule
     modifier pastCliffTime(address target) {
-        require(block.timestamp > schedules[target].cliffTimeInSec, "Vesting: still in cliff period");
+        require(block.timestamp >= schedules[target].cliffTimeInSec, "Vesting: still in cliff period");
         _;
     }
 
@@ -152,9 +156,9 @@ contract VestingWallet is Ownable {
 
 
     /// @notice Allows a beneficiary to withdraw vested tokens
-    function withdraw() external pastCliffTime(msg.sender) {
+    function withdraw() external pastStartTime(msg.sender) pastCliffTime(msg.sender) returns (uint amountWithdrawable) {
         VestingSchedule storage schedule = schedules[msg.sender];
-        uint amountWithdrawable = calculateWithdrawableAmount(schedule);
+        amountWithdrawable = calculateWithdrawableAmount(schedule);
         schedule.totalAmountWithdrawn += amountWithdrawable;
         vestingToken.transfer(msg.sender, amountWithdrawable);
         emit Withdrawal(msg.sender, amountWithdrawable);
@@ -175,7 +179,7 @@ contract VestingWallet is Ownable {
             // Calculate the linearly vested amount considering the time elapsed since the cliff.
             uint timeSinceCliff = block.timestamp - schedule.cliffTimeInSec;
             uint vestingDuration = schedule.endTimeInSec - schedule.cliffTimeInSec;
-            uint linearVestingAmount = (schedule.totalAmount - schedule.unlockAmount) * timeSinceCliff / vestingDuration;
+            uint linearVestingAmount = schedule.totalAmount * timeSinceCliff / vestingDuration;
 
             // Total vested amount includes the initial unlock plus linearly vested amount.
             uint totalVested = schedule.unlockAmount + linearVestingAmount;
@@ -218,47 +222,51 @@ contract VestingWallet is Ownable {
         return schedules[_address].totalAmount > 0;
     }
 
+    function getVestingSchedule(address _address) public view returns (VestingSchedule memory) {
+        return schedules[_address];
+    }
+
 
     function registerTeamSchedules() private {
-        registerVestingSchedule(0x554c52D1327E8dCDD36BAB93029eEbF07f22B0C8, 1715950800, 1747054800, 1752238800, 240000, 12000000);
-        registerVestingSchedule(0xf17B56063b9F5364b8199138F317e1D2AF6E94fD, 1715950800, 1747054800, 1752238800, 240000, 12000000);
-        registerVestingSchedule(0xd4696710A435093a0e55DfF1D6167515D95D1d4A, 1715950800, 1747054800, 1752238800, 96000, 4800000);
-        registerVestingSchedule(0xCb0f935Ee725f357aDE08d591459fb03933c6471, 1715950800, 1747054800, 1752238800, 96000, 4800000);
-        registerVestingSchedule(0xEf75d2e11888b9E035DeD70cdEa3E0108757D0fF, 1715950800, 1747054800, 1752238800, 976000, 48800000);
-        registerVestingSchedule(0x9DB2A19EB6E2D1c87430F77c963fA0366b81135c, 1715950800, 1747054800, 1752238800, 976000, 48800000);
-        registerVestingSchedule(0x0255361A55D7CE636d33d983E311cd171dd56926, 1715950800, 1747054800, 1752238800, 976000, 48800000);
+        registerVestingSchedule(0x554c52D1327E8dCDD36BAB93029eEbF07f22B0C8, 1715950800, 1747054800, 1876654800, 0, 12000000);
+        registerVestingSchedule(0xf17B56063b9F5364b8199138F317e1D2AF6E94fD, 1715950800, 1747054800, 1876654800, 0, 12000000);
+        registerVestingSchedule(0xd4696710A435093a0e55DfF1D6167515D95D1d4A, 1715950800, 1747054800, 1876654800, 0, 4800000);
+        registerVestingSchedule(0xCb0f935Ee725f357aDE08d591459fb03933c6471, 1715950800, 1747054800, 1876654800, 0, 4800000);
+        registerVestingSchedule(0xEf75d2e11888b9E035DeD70cdEa3E0108757D0fF, 1715950800, 1747054800, 1876654800, 0, 48800000);
+        registerVestingSchedule(0x9DB2A19EB6E2D1c87430F77c963fA0366b81135c, 1715950800, 1747054800, 1876654800, 0, 48800000);
+        registerVestingSchedule(0x0255361A55D7CE636d33d983E311cd171dd56926, 1715950800, 1747054800, 1876654800, 0, 48800000);
     }
     function registerFoundationSchedules() private {
-        registerVestingSchedule(0xEa065ca7cbF183b2C390156Fa569aD7728ba2d9e, 1715950800, 1718542800, 1726318800, 3600000, 120000000);
+        registerVestingSchedule(0xEa065ca7cbF183b2C390156Fa569aD7728ba2d9e, 1715950800, 1718542800, 1804942800, 0, 120000000);
     }
     function registerEcosystemRewardSchedules() private {
-        registerVestingSchedule(0x74Db12E988508f886478377EfE056eFde47Eacbf, 1715950800, 1718542800, 1723726800, 12120000, 606000000);
+        registerVestingSchedule(0x74Db12E988508f886478377EfE056eFde47Eacbf, 1715950800, 1718542800, 1848142800, 0, 606000000);
     }
     function registerPrivateSchedules() private {
-        registerVestingSchedule(0xb2a76c4A18b2863C155a8E382eBD231ffED48101, 1715950800, 1715950800, 1736686800, 3000000, 37500000);
-        registerVestingSchedule(0x199398D083e9cE6344c8Da5901FEE6dAbC7239Ae, 1715950800, 1715950800, 1736686800, 2500000, 31250000);
-        registerVestingSchedule(0x8f43460EFaEe1204229412c1cAd1DaF91BFf1036, 1715950800, 1715950800, 1736686800, 1450000, 18125000);
-        registerVestingSchedule(0x291f44f73a953f7Df8EfAa3C66E00478f30218D3, 1715950800, 1715950800, 1736686800, 500000, 6250000);
-        registerVestingSchedule(0x9f4f4aDf61159547C50442A4dc49Bd25eEa281fe, 1715950800, 1715950800, 1736686800, 20000, 250000);
-        registerVestingSchedule(0x8862e5fe6E4fb048e922d1BE52618D85ab24CcD7, 1715950800, 1715950800, 1736686800, 430000, 5375000);
-        registerVestingSchedule(0xbf05fA4cC9d40C8613CAcc5Ba307306e299C4BBc, 1715950800, 1715950800, 1736686800, 2000000, 25000000);
-        registerVestingSchedule(0x1fa221e683d1D5296403DBF50E8E84920457aC8E, 1715950800, 1715950800, 1736686800, 1500000, 18750000);
-        registerVestingSchedule(0xB562478a9a95A29f95e08457e75cd24eFfA7215d, 1715950800, 1715950800, 1736686800, 500000, 6250000);
-        registerVestingSchedule(0xAA49E638dBee6E74f8709062AD96207DF81040B7, 1715950800, 1715950800, 1736686800, 1500000, 18750000);
-        registerVestingSchedule(0xdB26A7823B8E0164e1a5ea1364a941EE89Bb8F3F, 1715950800, 1715950800, 1736686800, 1000000, 12500000);
-        registerVestingSchedule(0x35D2d03607b9155b42CF673102FE58251AC4F644, 1715950800, 1715950800, 1736686800, 500000, 6250000);
-        registerVestingSchedule(0x600eB73Cb462DA9c19235dE1e9a27da827C9c80d, 1715950800, 1715950800, 1736686800, 500000, 6250000);
-        registerVestingSchedule(0x9f5E06257acf18f02025E3273FDD80F97Ef7c7e7, 1715950800, 1715950800, 1736686800, 200000, 2500000);
-        registerVestingSchedule(0x211bd8FFB70dbaC35497310C32B5c034517A1328, 1715950800, 1715950800, 1736686800, 250000, 3125000);
-        registerVestingSchedule(0xD1434ee987C7DA8D44bDA125c3CDbf2ab6423D50, 1715950800, 1715950800, 1736686800, 250000, 3125000);
-        registerVestingSchedule(0x7bB97AB045dd6BA0387ada21a0911068032Cc5a3, 1715950800, 1715950800, 1736686800, 150000, 1875000);
-        registerVestingSchedule(0x376b7BbF5A2A90836a6f1f4B66dDd69079485050, 1715950800, 1715950800, 1736686800, 350000, 4375000);
-        registerVestingSchedule(0x05c9B1012e8D9a3F84dCfBe5Fb5c2CE8191e3dee, 1715950800, 1715950800, 1736686800, 650000, 8125000);
-        registerVestingSchedule(0xF331D3711fB0E86a0Bc44Eb6888e78F6E59baf57, 1715950800, 1715950800, 1736686800, 410000, 5125000);
-        registerVestingSchedule(0xc8348F201Deff19AD5d0a87e8153d9d376faa8e2, 1715950800, 1715950800, 1736686800, 100000, 1250000);
+        registerVestingSchedule(0xb2a76c4A18b2863C155a8E382eBD231ffED48101, 1715950800, 1715950800, 1748350800, 1875000, 37500000);
+        registerVestingSchedule(0x199398D083e9cE6344c8Da5901FEE6dAbC7239Ae, 1715950800, 1715950800, 1748350800, 1562500, 31250000);
+        registerVestingSchedule(0x8f43460EFaEe1204229412c1cAd1DaF91BFf1036, 1715950800, 1715950800, 1748350800, 906250, 18125000);
+        registerVestingSchedule(0x291f44f73a953f7Df8EfAa3C66E00478f30218D3, 1715950800, 1715950800, 1748350800, 312500, 6250000);
+        registerVestingSchedule(0x9f4f4aDf61159547C50442A4dc49Bd25eEa281fe, 1715950800, 1715950800, 1748350800, 12500, 250000);
+        registerVestingSchedule(0x8862e5fe6E4fb048e922d1BE52618D85ab24CcD7, 1715950800, 1715950800, 1748350800, 268750, 5375000);
+        registerVestingSchedule(0xbf05fA4cC9d40C8613CAcc5Ba307306e299C4BBc, 1715950800, 1715950800, 1748350800, 1250000, 25000000);
+        registerVestingSchedule(0x1fa221e683d1D5296403DBF50E8E84920457aC8E, 1715950800, 1715950800, 1748350800, 937500, 18750000);
+        registerVestingSchedule(0xB562478a9a95A29f95e08457e75cd24eFfA7215d, 1715950800, 1715950800, 1748350800, 312500, 6250000);
+        registerVestingSchedule(0xAA49E638dBee6E74f8709062AD96207DF81040B7, 1715950800, 1715950800, 1748350800, 937500, 18750000);
+        registerVestingSchedule(0xdB26A7823B8E0164e1a5ea1364a941EE89Bb8F3F, 1715950800, 1715950800, 1748350800, 625000, 12500000);
+        registerVestingSchedule(0x35D2d03607b9155b42CF673102FE58251AC4F644, 1715950800, 1715950800, 1748350800, 312500, 6250000);
+        registerVestingSchedule(0x600eB73Cb462DA9c19235dE1e9a27da827C9c80d, 1715950800, 1715950800, 1748350800, 312500, 6250000);
+        registerVestingSchedule(0x9f5E06257acf18f02025E3273FDD80F97Ef7c7e7, 1715950800, 1715950800, 1748350800, 125000, 2500000);
+        registerVestingSchedule(0x211bd8FFB70dbaC35497310C32B5c034517A1328, 1715950800, 1715950800, 1748350800, 156250, 3125000);
+        registerVestingSchedule(0xD1434ee987C7DA8D44bDA125c3CDbf2ab6423D50, 1715950800, 1715950800, 1748350800, 156250, 3125000);
+        registerVestingSchedule(0x7bB97AB045dd6BA0387ada21a0911068032Cc5a3, 1715950800, 1715950800, 1748350800, 93750, 1875000);
+        registerVestingSchedule(0x376b7BbF5A2A90836a6f1f4B66dDd69079485050, 1715950800, 1715950800, 1748350800, 218750, 4375000);
+        registerVestingSchedule(0x05c9B1012e8D9a3F84dCfBe5Fb5c2CE8191e3dee, 1715950800, 1715950800, 1748350800, 406250, 8125000);
+        registerVestingSchedule(0xF331D3711fB0E86a0Bc44Eb6888e78F6E59baf57, 1715950800, 1715950800, 1748350800, 256250, 5125000);
+        registerVestingSchedule(0xc8348F201Deff19AD5d0a87e8153d9d376faa8e2, 1715950800, 1715950800, 1748350800, 62500, 1250000);
     }
     function registerMarketingSchedules() private {
-        registerVestingSchedule(0x5676C522B1fa65465c684F108B94FBc4132fED3b, 1715950800, 1715950800, 1744462800, 2640000, 24000000);
+        registerVestingSchedule(0x5676C522B1fa65465c684F108B94FBc4132fED3b, 1715950800, 1715950800, 1739514436, 2400000, 24000000);
     }
 
 }
