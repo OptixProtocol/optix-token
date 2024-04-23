@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import {Test, console2} from "forge-std/Test.sol";
+// import {Test, console2} from "forge-std/Test.sol";
 
 
 /// @notice Struct defining a vesting schedule
@@ -20,7 +21,7 @@ struct VestingSchedule {
 
 /// @title VestingWallet
 /// @notice Manages the vesting of ERC20 tokens for beneficiaries with a customizable vesting schedule.
-contract VestingWallet is Ownable {
+contract VestingWallet is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     bool isInitialized = false;
@@ -50,8 +51,6 @@ contract VestingWallet is Ownable {
         uint totalAmount
     );
     event Withdrawal(address indexed registeredAddress, uint amountWithdrawn);
-    // event VestingEndedByOwner(address indexed registeredAddress, uint amountWithdrawn, uint amountRefunded);
-    // event AddressChangeRequested(address indexed oldRegisteredAddress, address indexed newRegisteredAddress);
     event AddressChanged(address indexed oldRegisteredAddress, address indexed newRegisteredAddress);
 
     modifier pendingAddressChangeRequest(address target) {
@@ -134,6 +133,7 @@ contract VestingWallet is Ownable {
         pastMaxSupply(_totalAmount)
         validVestingScheduleTimes(_startTimeInSec, _cliffTimeInSec, _endTimeInSec)
         addressNotNull(_addressToRegister)
+        nonReentrant 
     {
         scheduledTokens = scheduledTokens + _totalAmount;
         schedules[_addressToRegister] = VestingSchedule({
@@ -157,7 +157,13 @@ contract VestingWallet is Ownable {
 
 
     /// @notice Allows a beneficiary to withdraw vested tokens
-    function withdraw() external pastStartTime(msg.sender) pastCliffTime(msg.sender) returns (uint amountWithdrawable) {
+    function withdraw()
+        external
+        pastStartTime(msg.sender)
+        pastCliffTime(msg.sender)
+        nonReentrant
+        returns (uint amountWithdrawable) 
+    {
         VestingSchedule storage schedule = schedules[msg.sender];
         amountWithdrawable = calculateWithdrawableAmount(schedule);
         schedule.totalAmountWithdrawn += amountWithdrawable;
@@ -204,6 +210,7 @@ contract VestingWallet is Ownable {
     function changeAddress(address _newRegisteredAddress)
         public
         addressNotNull(_newRegisteredAddress)
+        nonReentrant
     {
         require(hasVestingSchedule(msg.sender),"Caller has no vesting schedule");
         require(!hasVestingSchedule(_newRegisteredAddress),"New address already has a vesting schedule");
