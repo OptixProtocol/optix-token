@@ -34,20 +34,13 @@ contract VestingWallet is Ownable, ReentrancyGuard {
 
     IERC20 vestingToken;    // Token that will be vested
 
+    event Initialized (uint maxSupply);
     event VestingScheduleRegistered(
         address indexed registeredAddress,
         uint startTimeInSec,
         uint cliffTimeInSec,
         uint endTimeInSec,
         uint unlockAmount, 
-        uint totalAmount
-    );
-    event VestingScheduleConfirmed(
-        address indexed registeredAddress,
-        uint startTimeInSec,
-        uint cliffTimeInSec,
-        uint endTimeInSec,
-        uint unlockAmount,
         uint totalAmount
     );
     event Withdrawal(address indexed registeredAddress, uint amountWithdrawn);
@@ -110,6 +103,7 @@ contract VestingWallet is Ownable, ReentrancyGuard {
         registerMarketingSchedules();
 
         isInitialized = true;
+        emit Initialized(maxSupply);
     }
 
 
