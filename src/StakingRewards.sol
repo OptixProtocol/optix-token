@@ -61,10 +61,6 @@ contract StakingRewards is Ownable, ReentrancyGuard, Pausable {
     }
 
     function earned(address account) public view returns (uint256) {
-        // console.log("rewards[account]: %s", rewards[account]);
-        // console.log("rewardPerToken(): %s", rewardPerToken());
-        // console.log("userRewardPerTokenPaid[account]: %s", userRewardPerTokenPaid[account]);
-        // console.log("_balances[account]: %s", _balances[account]);
         return (_balances[account] * (rewardPerToken() - userRewardPerTokenPaid[account]) / 1e18) + rewards[account];
     }
 
