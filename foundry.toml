@@ -2,6 +2,6 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-match_test = ""
+match_test = "test_SR_"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
