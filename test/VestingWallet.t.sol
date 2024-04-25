@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test, console, console2} from "forge-std/Test.sol";
 import {VestingWallet, VestingSchedule} from "../src/VestingWallet.sol";
+import {StakingRewards} from "../src/StakingRewards.sol";
 import {OptixToken} from "../src/OptixToken.sol";
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
@@ -10,6 +11,7 @@ import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 /// @notice Uses forge-std for testing the VestingWallet contract
 contract VestingWalletTest is Test {
     VestingWallet public vestingWallet;
+    StakingRewards public stakingRewards;
     OptixToken public optixToken;
 
     uint tgeTimestamp = 1715950800; //13:00 UTC, 17TH MAY 2024
@@ -59,15 +61,16 @@ contract VestingWalletTest is Test {
     function setUp() public {
         optixToken = new OptixToken();
         vestingWallet = new VestingWallet();
+        stakingRewards = new StakingRewards(address(optixToken), address(optixToken));
 
         optixToken.initialize(address(vestingWallet), publicTokensUser, liquidityTokensUser);
-        vestingWallet.initialize(address(optixToken));
+        vestingWallet.initialize(address(optixToken), address(stakingRewards));
 
         //for testing boundary ranges
         mockToken = new MockERC20("Mock", "MCK", mockDecimals);
         mockVesting = new VestingWallet();
         mockToken.mint(address(mockVesting), mockTotalSupply * 10 ** mockDecimals);
-        mockVesting.initialize(address(mockToken));
+        mockVesting.initialize(address(mockToken), address(stakingRewards));
     }
 
     function test_VW_InitialBalanceAndSupply() public {

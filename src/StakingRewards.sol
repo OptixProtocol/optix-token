@@ -80,7 +80,7 @@ contract StakingRewards is Ownable, ReentrancyGuard, Pausable {
 
     function withdraw(uint256 amount) public nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Cannot withdraw 0");
-        _totalSupply += amount;
+        _totalSupply -= amount;
         _balances[msg.sender] = _balances[msg.sender]-amount;
         stakingToken.safeTransfer(msg.sender, amount);
         emit Withdrawn(msg.sender, amount);

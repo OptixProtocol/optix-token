@@ -4,6 +4,7 @@ pragma solidity 0.8.20;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {StakingRewards} from "src/StakingRewards.sol";
 
 // import {Test, console2} from "forge-std/Test.sol";
 
@@ -19,10 +20,16 @@ struct VestingSchedule {
     uint totalAmountWithdrawn;
 }
 
+interface IStaking {
+    function stake(uint256 amount) external;
+}
+
 /// @title VestingWallet
 /// @notice Manages the vesting of ERC20 tokens for beneficiaries with a customizable vesting schedule.
 contract VestingWallet is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
+
+    /* ========== STATE VARIABLES ========== */
 
     bool isInitialized = false;
 
@@ -33,66 +40,19 @@ contract VestingWallet is Ownable, ReentrancyGuard {
     mapping(address => address) public addressChangeRequests; // Requested address changes
 
     IERC20 vestingToken;    // Token that will be vested
+    IStaking stakingContract;
 
-    event Initialized (uint maxSupply);
-    event VestingScheduleRegistered(
-        address indexed registeredAddress,
-        uint startTimeInSec,
-        uint cliffTimeInSec,
-        uint endTimeInSec,
-        uint unlockAmount, 
-        uint totalAmount
-    );
-    event Withdrawal(address indexed registeredAddress, uint amountWithdrawn);
-    event AddressChanged(address indexed oldRegisteredAddress, address indexed newRegisteredAddress);
-
-    modifier pendingAddressChangeRequest(address target) {
-        require(addressChangeRequests[target] != address(0),"addressChangeRequests[target] != address(0)");
-        _;
-    }
-
-    /// @dev Ensures the caller is past the cliff time of their vesting schedule
-    modifier pastStartTime(address target) {
-        require(block.timestamp >= schedules[target].startTimeInSec, "Vesting: start time not reached");
-        _;
-    }
-
-    /// @dev Ensures the caller is past the cliff time of their vesting schedule
-    modifier pastCliffTime(address target) {
-        require(block.timestamp >= schedules[target].cliffTimeInSec, "Vesting: still in cliff period");
-        _;
-    }
-
-    /// @dev Validates that the provided times for a vesting schedule are logical
-    /// @param startTimeInSec When the vesting starts
-    /// @param cliffTimeInSec When the tokens begin to vest
-    /// @param endTimeInSec When the vesting ends
-    modifier validVestingScheduleTimes(uint startTimeInSec, uint cliffTimeInSec, uint endTimeInSec) {
-        require(startTimeInSec > block.timestamp, "Vesting: start time has passed");
-        require(cliffTimeInSec >= startTimeInSec, "Vesting: cliff starts before vesting");
-        require(endTimeInSec >= cliffTimeInSec, "Vesting: end is before cliff");
-        _;
-    }
-
-    modifier addressNotNull(address target) {
-        require(target != address(0),"target != address(0)");
-        _;
-    }
-
-    /// @dev Ensures the total scheduled tokens do not exceed the max supply
-    /// @param totalAmount The total amount being added to the schedule
-    modifier pastMaxSupply(uint totalAmount) {
-        require(scheduledTokens + totalAmount <= maxSupply, "Vesting: exceeds max supply");
-        _;
-    }
+    /* ========== CONSTRUCTOR & INITIALIZATION ========== */
 
     /// @notice Creates a new VestingWallet contract instance
     constructor() Ownable(msg.sender) {
     }
 
-    function initialize(address _vestingToken) public onlyOwner {
+    function initialize(address _vestingToken, address _stakingContract) public onlyOwner {
         require(!isInitialized, 'Contract is already initialized!');
         vestingToken = IERC20(_vestingToken);
+        stakingContract = IStaking(_stakingContract);
+
         require(vestingToken.balanceOf(address(this)) > 0, 'Vesting wallet has no tokens!');
         maxSupply = vestingToken.balanceOf(address(this));
 
@@ -106,6 +66,50 @@ contract VestingWallet is Ownable, ReentrancyGuard {
         emit Initialized(maxSupply);
     }
 
+    /* ========== VIEWS ========== */
+    
+    /// @notice Checks if a given address has an active vesting schedule.
+    /// @param _address The address to check for an active vesting schedule.
+    /// @return bool Returns true if there is an active vesting schedule for the given address, false otherwise.
+    function hasVestingSchedule(address _address) public view returns (bool) {
+        return schedules[_address].totalAmount > 0;
+    }
+
+    function getVestingSchedule(address _address) public view returns (VestingSchedule memory) {
+        return schedules[_address];
+    }
+
+    /// @notice Calculates the amount of tokens that can be withdrawn by a beneficiary
+    /// @param schedule The vesting schedule to calculate for
+    /// @return The amount of tokens that can be withdrawn
+    function calculateWithdrawableAmount(VestingSchedule storage schedule) internal view returns (uint) {
+        if (block.timestamp < schedule.cliffTimeInSec) {
+            // Before the cliff, nothing is vested.
+            return 0;
+        } else if (block.timestamp >= schedule.endTimeInSec) {
+            // After the end, everything is vested.
+            return schedule.totalAmount - schedule.totalAmountWithdrawn;
+        } else {
+            // Calculate the linearly vested amount considering the time elapsed since the cliff.
+            uint timeSinceCliff = block.timestamp - schedule.cliffTimeInSec;
+            uint vestingDuration = schedule.endTimeInSec - schedule.cliffTimeInSec;
+            uint linearVestingAmount = schedule.totalAmount * timeSinceCliff / vestingDuration;
+
+            // Total vested amount includes the initial unlock plus linearly vested amount.
+            uint totalVested = schedule.unlockAmount + linearVestingAmount;
+
+            // Ensure not to exceed the total amount vested.
+            if (totalVested > schedule.totalAmount) {
+                totalVested = schedule.totalAmount;
+            }
+
+            // Calculate withdrawable amount.
+            uint amountWithdrawable = totalVested - schedule.totalAmountWithdrawn;
+            return amountWithdrawable;
+        }
+    }
+
+    /* ========== MUTATIVE FUNCTIONS ========== */
 
     /// @dev Registers a vesting schedule to an address.
     /// @param _addressToRegister The address that is allowed to withdraw vested tokens for this schedule.
@@ -149,10 +153,9 @@ contract VestingWallet is Ownable, ReentrancyGuard {
         );
     }
 
-
     /// @notice Allows a beneficiary to withdraw vested tokens
     function withdraw()
-        external
+        public
         pastStartTime(msg.sender)
         pastCliffTime(msg.sender)
         nonReentrant
@@ -165,44 +168,22 @@ contract VestingWallet is Ownable, ReentrancyGuard {
         emit Withdrawal(msg.sender, amountWithdrawable);
     }
 
-
-    /// @notice Calculates the amount of tokens that can be withdrawn by a beneficiary
-    /// @param schedule The vesting schedule to calculate for
-    /// @return The amount of tokens that can be withdrawn
-    function calculateWithdrawableAmount(VestingSchedule storage schedule) internal view returns (uint) {
-        if (block.timestamp < schedule.cliffTimeInSec) {
-            // Before the cliff, nothing is vested.
-            return 0;
-        } else if (block.timestamp >= schedule.endTimeInSec) {
-            // After the end, everything is vested.
-            return schedule.totalAmount - schedule.totalAmountWithdrawn;
-        } else {
-            // Calculate the linearly vested amount considering the time elapsed since the cliff.
-            uint timeSinceCliff = block.timestamp - schedule.cliffTimeInSec;
-            uint vestingDuration = schedule.endTimeInSec - schedule.cliffTimeInSec;
-            uint linearVestingAmount = schedule.totalAmount * timeSinceCliff / vestingDuration;
-
-            // Total vested amount includes the initial unlock plus linearly vested amount.
-            uint totalVested = schedule.unlockAmount + linearVestingAmount;
-
-            // Ensure not to exceed the total amount vested.
-            if (totalVested > schedule.totalAmount) {
-                totalVested = schedule.totalAmount;
-            }
-
-            // Calculate withdrawable amount.
-            uint amountWithdrawable = totalVested - schedule.totalAmountWithdrawn;
-            return amountWithdrawable;
-        }
+    /// @notice Allows a beneficiary to withdraw vested tokens & immediately stake them
+    function withdrawAndStake()
+        external
+        pastStartTime(msg.sender)
+        pastCliffTime(msg.sender)
+        nonReentrant
+        returns (uint amountWithdrawable) 
+    {
+        amountWithdrawable = withdraw();
+        stakingContract.stake(amountWithdrawable);
     }
-
-
-
 
     /// @dev Changes the address that the vesting schedules is associated with.
     /// @param _newRegisteredAddress Desired address to update to.
     function changeAddress(address _newRegisteredAddress)
-        public
+        external
         addressNotNull(_newRegisteredAddress)
         nonReentrant
     {
@@ -216,18 +197,7 @@ contract VestingWallet is Ownable, ReentrancyGuard {
         emit AddressChanged(msg.sender, _newRegisteredAddress);
     }
 
-
-    /// @notice Checks if a given address has an active vesting schedule.
-    /// @param _address The address to check for an active vesting schedule.
-    /// @return bool Returns true if there is an active vesting schedule for the given address, false otherwise.
-    function hasVestingSchedule(address _address) public view returns (bool) {
-        return schedules[_address].totalAmount > 0;
-    }
-
-    function getVestingSchedule(address _address) public view returns (VestingSchedule memory) {
-        return schedules[_address];
-    }
-
+    /* ========== PRIVATE FUNCTIONS ========== */
 
     function registerTeamSchedules() private {
         registerVestingSchedule(0x554c52D1327E8dCDD36BAB93029eEbF07f22B0C8, 1715950800, 1747054800, 1876654800, 0, 12000000000000000000000000);
@@ -271,4 +241,60 @@ contract VestingWallet is Ownable, ReentrancyGuard {
         registerVestingSchedule(0x5676C522B1fa65465c684F108B94FBc4132fED3b, 1715950800, 1715950800, 1739514436, 2400000000000000000000000, 24000000000000000000000000);
     }
 
+    /* ========== MODIFIERS ========== */
+
+    modifier pendingAddressChangeRequest(address target) {
+        require(addressChangeRequests[target] != address(0),"addressChangeRequests[target] != address(0)");
+        _;
+    }
+
+    /// @dev Ensures the caller is past the cliff time of their vesting schedule
+    modifier pastStartTime(address target) {
+        require(block.timestamp >= schedules[target].startTimeInSec, "Vesting: start time not reached");
+        _;
+    }
+
+    /// @dev Ensures the caller is past the cliff time of their vesting schedule
+    modifier pastCliffTime(address target) {
+        require(block.timestamp >= schedules[target].cliffTimeInSec, "Vesting: still in cliff period");
+        _;
+    }
+
+    /// @dev Validates that the provided times for a vesting schedule are logical
+    /// @param startTimeInSec When the vesting starts
+    /// @param cliffTimeInSec When the tokens begin to vest
+    /// @param endTimeInSec When the vesting ends
+    modifier validVestingScheduleTimes(uint startTimeInSec, uint cliffTimeInSec, uint endTimeInSec) {
+        require(startTimeInSec > block.timestamp, "Vesting: start time has passed");
+        require(cliffTimeInSec >= startTimeInSec, "Vesting: cliff starts before vesting");
+        require(endTimeInSec >= cliffTimeInSec, "Vesting: end is before cliff");
+        _;
+    }
+
+    modifier addressNotNull(address target) {
+        require(target != address(0),"target != address(0)");
+        _;
+    }
+
+    /// @dev Ensures the total scheduled tokens do not exceed the max supply
+    /// @param totalAmount The total amount being added to the schedule
+    modifier pastMaxSupply(uint totalAmount) {
+        require(scheduledTokens + totalAmount <= maxSupply, "Vesting: exceeds max supply");
+        _;
+    }
+
+
+    /* ========== EVENTS ========== */
+
+    event Initialized (uint maxSupply);
+    event VestingScheduleRegistered(
+        address indexed registeredAddress,
+        uint startTimeInSec,
+        uint cliffTimeInSec,
+        uint endTimeInSec,
+        uint unlockAmount, 
+        uint totalAmount
+    );
+    event Withdrawal(address indexed registeredAddress, uint amountWithdrawn);
+    event AddressChanged(address indexed oldRegisteredAddress, address indexed newRegisteredAddress);
 }

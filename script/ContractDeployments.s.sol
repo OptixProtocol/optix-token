@@ -20,7 +20,7 @@ contract ContractDeployments is Script {
         address liquidityTokens = address(0xA4747D8FE7e0Be4962ca376E4c33295110781A81);
 
         optixToken.initialize(address(vestingWallet), publicTokens, liquidityTokens);
-        vestingWallet.initialize(address(optixToken));
+        vestingWallet.initialize(address(optixToken), address(stakingRewards));
     }
 
     function run() public {
