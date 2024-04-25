@@ -5,7 +5,6 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {Test, console, console2} from "forge-std/Test.sol";
 
 /// @title Staking Rewards Contract
 /// @notice This contract allows users to stake tokens and earn rewards based on the staking duration and amount.

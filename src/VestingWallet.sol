@@ -6,9 +6,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {StakingRewards} from "src/StakingRewards.sol";
 
-// import {Test, console2} from "forge-std/Test.sol";
-
-
 /// @notice Struct defining a vesting schedule
 /// @dev Contains all the parameters necessary for calculating vested amounts
 struct VestingSchedule {
