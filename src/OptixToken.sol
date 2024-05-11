@@ -14,10 +14,10 @@ contract OptixToken is ERC20, Ownable {
         require(!isInitialized, 'Contract is already initialized!');
         isInitialized = true;
 
-        _mint(publicTokens, 24000000 * 10 ** decimals());
-        _mint(liquidityTokens, 24000000 * 10 ** decimals());
-        _mint(vestingWallet, 1152000000 * 10 ** decimals());
+        _mint(publicTokens, 24_000_000 * 10 ** decimals());
+        _mint(liquidityTokens, 24_000_000 * 10 ** decimals());
+        _mint(vestingWallet, 1_152_000_000 * 10 ** decimals());
 
-        require(totalSupply()==1200000000 * 10 ** decimals(), 'Total supply must be 1.2B!');
+        require(totalSupply()==1_200_000_000 * 10 ** decimals(), 'Total supply must be 1.2B!');
     }
 }
