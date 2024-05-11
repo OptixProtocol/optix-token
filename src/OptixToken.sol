@@ -5,7 +5,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract OptixToken is ERC20, Ownable {
-    bool isInitialized = false;
+    bool isInitialized;
 
     constructor() ERC20("Optix", "OPTIX") Ownable(msg.sender) {
     }
