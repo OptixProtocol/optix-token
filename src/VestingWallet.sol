@@ -130,7 +130,8 @@ contract VestingWallet is Ownable, ReentrancyGuard {
         addressNotNull(_addressToRegister)
         nonReentrant 
     {
-        require(!hasVestingSchedule(msg.sender),"Caller already has a vesting schedule");
+        require(!hasVestingSchedule(_addressToRegister),"Vesting: Address already has a vesting schedule");
+        require(_unlockAmount <= _totalAmount, "Vesting: unlock amount exceeds total amount");
         scheduledTokens = scheduledTokens + _totalAmount;
         schedules[_addressToRegister] = VestingSchedule({
             startTimeInSec: _startTimeInSec,
