@@ -167,18 +167,6 @@ contract VestingWallet is Ownable, ReentrancyGuard {
         emit Withdrawal(msg.sender, amountWithdrawable);
     }
 
-    /// @notice Allows a beneficiary to withdraw vested tokens & immediately stake them
-    function withdrawAndStake()
-        external
-        pastStartTime(msg.sender)
-        pastCliffTime(msg.sender)
-        nonReentrant
-        returns (uint amountWithdrawable) 
-    {
-        amountWithdrawable = withdraw();
-        stakingContract.stake(amountWithdrawable);
-    }
-
     /// @dev Changes the address that the vesting schedules is associated with.
     /// @param _newRegisteredAddress Desired address to update to.
     function changeAddress(address _newRegisteredAddress)
