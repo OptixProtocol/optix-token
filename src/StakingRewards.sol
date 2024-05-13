@@ -20,6 +20,7 @@ contract StakingRewards is Ownable, ReentrancyGuard, Pausable {
     uint256 public rewardsDuration = 7 days;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
+    uint256 public rewardsBalance;
 
     mapping(address => uint256) public userRewardPerTokenPaid;
     mapping(address => uint256) public rewards;
@@ -89,6 +90,7 @@ contract StakingRewards is Ownable, ReentrancyGuard, Pausable {
         uint256 reward = rewards[msg.sender];
         if (reward > 0) {
             rewards[msg.sender] = 0;
+            rewardsBalance -= reward;
             rewardsToken.safeTransfer(msg.sender, reward);
             emit RewardPaid(msg.sender, reward);
         }
@@ -122,18 +124,20 @@ contract StakingRewards is Ownable, ReentrancyGuard, Pausable {
         // This keeps the reward rate in the right range, preventing overflows due to
         // very high values of rewardRate in the earned and rewardsPerToken functions;
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint balance = rewardsToken.balanceOf(address(this));
-        require(rewardRate <= balance/rewardsDuration, "Provided reward too high");
+        rewardsBalance += reward;
+        require(rewardRate <= rewardsBalance/rewardsDuration, "Provided reward too high");
 
         lastUpdateTime = block.timestamp;
         periodFinish = block.timestamp+(rewardsDuration);
+
+        rewardsToken.safeTransferFrom(msg.sender, address(this), reward);
         emit RewardAdded(reward);
     }
 
-    // // Added to support recovering LP Rewards from other systems such as BAL to be distributed to holders
+    // Added to support recovering LP Rewards from other systems such as BAL to be distributed to holders
     // function recoverERC20(address tokenAddress, uint256 tokenAmount) external onlyOwner {
     //     require(tokenAddress != address(stakingToken), "Cannot withdraw the staking token");
-    //     IERC20(tokenAddress).safeTransfer(owner, tokenAmount);
+    //     IERC20(tokenAddress).safeTransfer(owner(), tokenAmount);
     //     emit Recovered(tokenAddress, tokenAmount);
     // }
 

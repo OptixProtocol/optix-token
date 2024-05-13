@@ -130,6 +130,7 @@ contract VestingWallet is Ownable, ReentrancyGuard {
         addressNotNull(_addressToRegister)
         nonReentrant 
     {
+
         scheduledTokens = scheduledTokens + _totalAmount;
         schedules[_addressToRegister] = VestingSchedule({
             startTimeInSec: _startTimeInSec,

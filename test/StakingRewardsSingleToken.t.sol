@@ -7,10 +7,10 @@ import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract StakingRewardsTest is Test {
+contract StakingRewardsSingleTokenTest is Test {
     StakingRewards public stakingRewards;
-    MockERC20 public stakingToken;
-    MockERC20 public rewardsToken;
+    MockERC20 public singleToken;
+    // MockERC20 public singleToken;
 
     address private owner;
     address private user1;
@@ -21,22 +21,23 @@ contract StakingRewardsTest is Test {
             user1 = vm.addr(1);
             user2 = vm.addr(2);
 
-            rewardsToken = new MockERC20("Rewards Token", "RWT", 18);
-            stakingToken = new MockERC20("Staking Token", "STK", 18);
+            singleToken = new MockERC20("Single Token", "SINGLE", 18);
+            // singleToken = new MockERC20("Staking Token", "STK", 18);
 
-            rewardsToken.mint(owner, 1_000_000e18); // Mint some tokens for the owner
-            stakingToken.mint(user1, 100_000e18);   // Mint staking tokens for user1
-            stakingToken.mint(user2, 100_000e18);   // Mint staking tokens for user2
+            singleToken.mint(owner, 1_000_000e18); // Mint some tokens for the owner
+            singleToken.mint(user1, 100_000e18);   // Mint staking tokens for user1
+            singleToken.mint(user2, 100_000e18);   // Mint staking tokens for user2
 
             vm.prank(owner); 
             stakingRewards = new StakingRewards(
-                address(rewardsToken),
-                address(stakingToken)
+                address(singleToken),
+                address(singleToken)
             );
 
             // Approve staking token to stakingRewards from users
-            vm.prank(user1); stakingToken.approve(address(stakingRewards), 100_000e18);
-            vm.prank(user2); stakingToken.approve(address(stakingRewards), 100_000e18);
+            vm.prank(user1); singleToken.approve(address(stakingRewards), 100_000e18);
+            vm.prank(user2); singleToken.approve(address(stakingRewards), 100_000e18);
+            vm.prank(owner); singleToken.approve(address(stakingRewards), 100_000e18);
         }
 
         function test_SR_PauseAndUnpauseStaking() public {
@@ -59,7 +60,7 @@ contract StakingRewardsTest is Test {
             vm.prank(user1); stakingRewards.stake(amount);
 
             vm.startPrank(owner);
-            rewardsToken.transfer(address(stakingRewards), rewardAmount);
+            singleToken.transfer(address(stakingRewards), rewardAmount);
             stakingRewards.notifyRewardAmount(rewardAmount);
             vm.stopPrank();
 
@@ -70,7 +71,7 @@ contract StakingRewardsTest is Test {
             stakingRewards.getReward(); // Claim reward
             uint earnedAfter = stakingRewards.earned(user1);
             assertLt(earnedAfter, earnedBefore, "Earned rewards should decrease after claiming");
-            uint balanceAfter = rewardsToken.balanceOf(user1);
+            uint balanceAfter = singleToken.balanceOf(user1);
             assertTrue(balanceAfter > 0, "User should have received rewards tokens");
             vm.stopPrank();
         }
@@ -87,7 +88,6 @@ contract StakingRewardsTest is Test {
 
         function test_SR_OnlyOwnerCanNotifyRewardAmount() public {
             uint256 rewardAmount = 1e18;
-            vm.prank(owner); rewardsToken.transfer(address(stakingRewards), rewardAmount);
 
             // Only owner should be able to notify reward amount
             vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
@@ -102,7 +102,7 @@ contract StakingRewardsTest is Test {
         function test_SR_UpdateRewardOnStake() public {
             uint256 amount = 1e18; // 1 token
             vm.startPrank(user1);
-            stakingToken.approve(address(stakingRewards), amount);
+            singleToken.approve(address(stakingRewards), amount);
             stakingRewards.stake(amount);
             vm.stopPrank();
             
@@ -112,7 +112,7 @@ contract StakingRewardsTest is Test {
             // Simulate passing time and then staking by another user
             vm.warp(block.timestamp + 1 days);
             vm.startPrank(user2);
-            stakingToken.approve(address(stakingRewards), amount);
+            singleToken.approve(address(stakingRewards), amount);
             stakingRewards.stake(amount);
             vm.stopPrank();
             
@@ -123,7 +123,7 @@ contract StakingRewardsTest is Test {
         function test_SR_UpdateRewardOnWithdraw() public {
             uint256 stakeAmount = 1e18; // 1 token
             vm.startPrank(user1);
-            stakingToken.approve(address(stakingRewards), stakeAmount);
+            singleToken.approve(address(stakingRewards), stakeAmount);
             stakingRewards.stake(stakeAmount);
             vm.stopPrank();
 
@@ -139,18 +139,18 @@ contract StakingRewardsTest is Test {
 
         function test_SR_UpdateRewardOnGetReward() public {
             uint256 rewardAmount = 100000e18; // Sufficient reward tokens transferred to the contract
-            vm.prank(owner);
-            rewardsToken.transfer(address(stakingRewards), rewardAmount);
+            // vm.prank(owner);
+            // singleToken.transfer(address(stakingRewards), rewardAmount);
 
             uint256 stakeAmount = 1e18; // 1 token
             vm.startPrank(user1);
-            stakingToken.approve(address(stakingRewards), stakeAmount);
+            singleToken.approve(address(stakingRewards), stakeAmount);
             stakingRewards.stake(stakeAmount);
             vm.stopPrank();
             
             // Notify reward amount to start the reward calculation
             vm.startPrank(owner);
-            stakingRewards.notifyRewardAmount(100e18); // Notify a total reward amount
+            stakingRewards.notifyRewardAmount(rewardAmount); // Notify a total reward amount
             vm.stopPrank();
 
             // Fast forward to allow some reward accumulation
@@ -167,7 +167,7 @@ contract StakingRewardsTest is Test {
             assertEq(stakingRewards.earned(user1), 0, "Earned rewards should be zero after claiming");
 
             // Check the contract's reward token balance to confirm the payout
-            uint256 remainingRewardInContract = rewardsToken.balanceOf(address(stakingRewards));
+            uint256 remainingRewardInContract = stakingRewards.rewardsBalance();
             uint256 expectedRemainingInContract = rewardAmount - expectedRewards;
             assertEq(remainingRewardInContract, expectedRemainingInContract, "Incorrect reward token balance in contract after claiming");
         }
@@ -183,13 +183,13 @@ contract StakingRewardsTest is Test {
 
             // User1 stakes some tokens
             vm.startPrank(user1);
-            stakingToken.approve(address(stakingRewards), amount);
+            singleToken.approve(address(stakingRewards), amount);
             stakingRewards.stake(amount);
             vm.stopPrank();
 
             // Transfer reward tokens to the staking contract and notify a reward amount
             vm.startPrank(owner);
-            rewardsToken.transfer(address(stakingRewards), rewardAmount);
+            singleToken.transfer(address(stakingRewards), rewardAmount);
             stakingRewards.notifyRewardAmount(rewardAmount);
             vm.stopPrank();
 
@@ -214,18 +214,18 @@ contract StakingRewardsTest is Test {
 
             // User1 and User2 stake tokens
             vm.startPrank(user1);
-            stakingToken.approve(address(stakingRewards), stakeAmount1);
+            singleToken.approve(address(stakingRewards), stakeAmount1);
             stakingRewards.stake(stakeAmount1); // 1 token
             vm.stopPrank();
 
             vm.startPrank(user2);
-            stakingToken.approve(address(stakingRewards), stakeAmount2);
+            singleToken.approve(address(stakingRewards), stakeAmount2);
             stakingRewards.stake(stakeAmount2); // 2 tokens
             vm.stopPrank();
 
             // Transfer reward tokens to the staking contract and notify a reward amount
             vm.startPrank(owner);
-            rewardsToken.transfer(address(stakingRewards), rewardAmount);
+            singleToken.transfer(address(stakingRewards), rewardAmount);
             stakingRewards.notifyRewardAmount(rewardAmount);
             vm.stopPrank();
 
@@ -271,7 +271,7 @@ contract StakingRewardsTest is Test {
             uint256 rewardAmount = 1e18; // 1 token as reward
 
             vm.startPrank(owner);
-            rewardsToken.transfer(address(stakingRewards), rewardAmount);
+            singleToken.transfer(address(stakingRewards), rewardAmount);
             stakingRewards.notifyRewardAmount(rewardAmount);
             vm.stopPrank();
 
