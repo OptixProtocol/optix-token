@@ -146,6 +146,9 @@ contract StakingRewards is Ownable, ReentrancyGuard, Pausable {
             block.timestamp > periodFinish,
             "Previous rewards period must be complete before changing the duration for the new period"
         );
+        require(_rewardsDuration >= 7 days , "Rewards duration cannot be less than 7 days");
+        require(_rewardsDuration <= 365 days, "Rewards duration cannot be more than 365 days");
+        
         rewardsDuration = _rewardsDuration;
         emit RewardsDurationUpdated(rewardsDuration);
     }
