@@ -15,8 +15,8 @@ contract StakingRewards is Ownable, ReentrancyGuard, Pausable {
 
     IERC20 public rewardsToken;
     IERC20 public stakingToken;
-    uint256 public periodFinish = 0;
-    uint256 public rewardRate = 0;
+    uint256 public periodFinish;
+    uint256 public rewardRate;
     uint256 public rewardsDuration = 7 days;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
@@ -134,13 +134,6 @@ contract StakingRewards is Ownable, ReentrancyGuard, Pausable {
         emit RewardAdded(reward);
     }
 
-    // Added to support recovering LP Rewards from other systems such as BAL to be distributed to holders
-    // function recoverERC20(address tokenAddress, uint256 tokenAmount) external onlyOwner {
-    //     require(tokenAddress != address(stakingToken), "Cannot withdraw the staking token");
-    //     IERC20(tokenAddress).safeTransfer(owner(), tokenAmount);
-    //     emit Recovered(tokenAddress, tokenAmount);
-    // }
-
     function setRewardsDuration(uint256 _rewardsDuration) external onlyOwner {
         require(
             block.timestamp > periodFinish,
@@ -148,7 +141,7 @@ contract StakingRewards is Ownable, ReentrancyGuard, Pausable {
         );
         require(_rewardsDuration >= 7 days , "Rewards duration cannot be less than 7 days");
         require(_rewardsDuration <= 365 days, "Rewards duration cannot be more than 365 days");
-        
+
         rewardsDuration = _rewardsDuration;
         emit RewardsDurationUpdated(rewardsDuration);
     }
@@ -172,5 +165,4 @@ contract StakingRewards is Ownable, ReentrancyGuard, Pausable {
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, uint256 reward);
     event RewardsDurationUpdated(uint256 newDuration);
-    event Recovered(address token, uint256 amount);
 }
