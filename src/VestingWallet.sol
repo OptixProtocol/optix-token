@@ -28,7 +28,7 @@ contract VestingWallet is Ownable, ReentrancyGuard {
 
     /* ========== STATE VARIABLES ========== */
 
-    bool isInitialized = false;
+    bool isInitialized;
 
     uint public maxSupply; // Maximum supply of tokens that can be vested
     uint public scheduledTokens; // Total tokens currently scheduled for vesting
