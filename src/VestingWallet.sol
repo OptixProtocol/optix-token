@@ -163,7 +163,7 @@ contract VestingWallet is Ownable, ReentrancyGuard {
         VestingSchedule storage schedule = schedules[msg.sender];
         amountWithdrawable = calculateWithdrawableAmount(schedule);
         schedule.totalAmountWithdrawn += amountWithdrawable;
-        vestingToken.transfer(msg.sender, amountWithdrawable);
+        vestingToken.safeTransfer(msg.sender, amountWithdrawable);
         emit Withdrawal(msg.sender, amountWithdrawable);
     }
 
