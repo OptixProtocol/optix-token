@@ -9,12 +9,12 @@ import {StakingRewards} from "src/StakingRewards.sol";
 /// @notice Struct defining a vesting schedule
 /// @dev Contains all the parameters necessary for calculating vested amounts
 struct VestingSchedule {
-    uint startTimeInSec;
-    uint cliffTimeInSec;
-    uint endTimeInSec;
-    uint unlockAmount;
-    uint totalAmount;
-    uint totalAmountWithdrawn;
+    uint256 startTimeInSec;
+    uint256 cliffTimeInSec;
+    uint256 endTimeInSec;
+    uint256 unlockAmount;
+    uint256 totalAmount;
+    uint256 totalAmountWithdrawn;
 }
 
 interface IStaking {
@@ -30,8 +30,8 @@ contract VestingWallet is Ownable, ReentrancyGuard {
 
     bool isInitialized;
 
-    uint public maxSupply; // Maximum supply of tokens that can be vested
-    uint public scheduledTokens; // Total tokens currently scheduled for vesting
+    uint256 public maxSupply; // Maximum supply of tokens that can be vested
+    uint256 public scheduledTokens; // Total tokens currently scheduled for vesting
 
     mapping(address => VestingSchedule) public schedules; // Vesting schedules for given addresses
     mapping(address => address) public addressChangeRequests; // Requested address changes
@@ -79,7 +79,7 @@ contract VestingWallet is Ownable, ReentrancyGuard {
     /// @notice Calculates the amount of tokens that can be withdrawn by a beneficiary
     /// @param schedule The vesting schedule to calculate for
     /// @return The amount of tokens that can be withdrawn
-    function calculateWithdrawableAmount(VestingSchedule storage schedule) internal view returns (uint) {
+    function calculateWithdrawableAmount(VestingSchedule storage schedule) internal view returns (uint256) {
         if (block.timestamp < schedule.cliffTimeInSec) {
             // Before the cliff, nothing is vested.
             return 0;
@@ -88,12 +88,12 @@ contract VestingWallet is Ownable, ReentrancyGuard {
             return schedule.totalAmount - schedule.totalAmountWithdrawn;
         } else {
             // Calculate the linearly vested amount considering the time elapsed since the cliff.
-            uint timeSinceCliff = block.timestamp - schedule.cliffTimeInSec;
-            uint vestingDuration = schedule.endTimeInSec - schedule.cliffTimeInSec;
-            uint linearVestingAmount = schedule.totalAmount * timeSinceCliff / vestingDuration;
+            uint256 timeSinceCliff = block.timestamp - schedule.cliffTimeInSec;
+            uint256 vestingDuration = schedule.endTimeInSec - schedule.cliffTimeInSec;
+            uint256 linearVestingAmount = schedule.totalAmount * timeSinceCliff / vestingDuration;
 
             // Total vested amount includes the initial unlock plus linearly vested amount.
-            uint totalVested = schedule.unlockAmount + linearVestingAmount;
+            uint256 totalVested = schedule.unlockAmount + linearVestingAmount;
 
             // Ensure not to exceed the total amount vested.
             if (totalVested > schedule.totalAmount) {
@@ -101,7 +101,7 @@ contract VestingWallet is Ownable, ReentrancyGuard {
             }
 
             // Calculate withdrawable amount.
-            uint amountWithdrawable = totalVested - schedule.totalAmountWithdrawn;
+            uint256 amountWithdrawable = totalVested - schedule.totalAmountWithdrawn;
             return amountWithdrawable;
         }
     }
@@ -117,11 +117,11 @@ contract VestingWallet is Ownable, ReentrancyGuard {
     /// @param _totalAmount The total amount of tokens that the registered address can withdraw by the end of the vesting period.
     function registerVestingSchedule(
         address _addressToRegister,
-        uint _startTimeInSec,
-        uint _cliffTimeInSec,
-        uint _endTimeInSec,
-        uint _unlockAmount,
-        uint _totalAmount
+        uint256 _startTimeInSec,
+        uint256 _cliffTimeInSec,
+        uint256 _endTimeInSec,
+        uint256 _unlockAmount,
+        uint256 _totalAmount
     )
         public
         onlyOwner
@@ -158,7 +158,7 @@ contract VestingWallet is Ownable, ReentrancyGuard {
         pastStartTime(msg.sender)
         pastCliffTime(msg.sender)
         nonReentrant
-        returns (uint amountWithdrawable) 
+        returns (uint256 amountWithdrawable) 
     {
         VestingSchedule storage schedule = schedules[msg.sender];
         amountWithdrawable = calculateWithdrawableAmount(schedule);
@@ -230,11 +230,6 @@ contract VestingWallet is Ownable, ReentrancyGuard {
 
     /* ========== MODIFIERS ========== */
 
-    modifier pendingAddressChangeRequest(address target) {
-        require(addressChangeRequests[target] != address(0),"addressChangeRequests[target] != address(0)");
-        _;
-    }
-
     /// @dev Ensures the caller is past the cliff time of their vesting schedule
     modifier pastStartTime(address target) {
         require(block.timestamp >= schedules[target].startTimeInSec, "Vesting: start time not reached");
@@ -251,7 +246,7 @@ contract VestingWallet is Ownable, ReentrancyGuard {
     /// @param startTimeInSec When the vesting starts
     /// @param cliffTimeInSec When the tokens begin to vest
     /// @param endTimeInSec When the vesting ends
-    modifier validVestingScheduleTimes(uint startTimeInSec, uint cliffTimeInSec, uint endTimeInSec) {
+    modifier validVestingScheduleTimes(uint256 startTimeInSec, uint256 cliffTimeInSec, uint256 endTimeInSec) {
         require(startTimeInSec > block.timestamp, "Vesting: start time has passed");
         require(cliffTimeInSec >= startTimeInSec, "Vesting: cliff starts before vesting");
         require(endTimeInSec >= cliffTimeInSec, "Vesting: end is before cliff");
@@ -265,7 +260,7 @@ contract VestingWallet is Ownable, ReentrancyGuard {
 
     /// @dev Ensures the total scheduled tokens do not exceed the max supply
     /// @param totalAmount The total amount being added to the schedule
-    modifier pastMaxSupply(uint totalAmount) {
+    modifier pastMaxSupply(uint256 totalAmount) {
         require(scheduledTokens + totalAmount <= maxSupply, "Vesting: exceeds max supply");
         _;
     }
@@ -273,15 +268,15 @@ contract VestingWallet is Ownable, ReentrancyGuard {
 
     /* ========== EVENTS ========== */
 
-    event Initialized (uint maxSupply);
+    event Initialized (uint256 maxSupply);
     event VestingScheduleRegistered(
         address indexed registeredAddress,
-        uint startTimeInSec,
-        uint cliffTimeInSec,
-        uint endTimeInSec,
-        uint unlockAmount, 
-        uint totalAmount
+        uint256 startTimeInSec,
+        uint256 cliffTimeInSec,
+        uint256 endTimeInSec,
+        uint256 unlockAmount, 
+        uint256 totalAmount
     );
-    event Withdrawal(address indexed registeredAddress, uint amountWithdrawn);
+    event Withdrawal(address indexed registeredAddress, uint256 amountWithdrawn);
     event AddressChanged(address indexed oldRegisteredAddress, address indexed newRegisteredAddress);
 }
