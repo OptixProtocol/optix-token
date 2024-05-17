@@ -211,7 +211,26 @@ contract VestingWalletTest is Test {
         vestingWallet.registerVestingSchedule(address(1), startTime, cliffTime, endTime, unlockAmount, totalAmount);
     }
 
-    // Your newly refactored function
+    function test_VW_TotalAmount() public {
+        uint256 startTime = tgeTimestamp;
+        uint256 cliffTime = startTime + 10 days;
+        uint256 endTime = cliffTime + 90 days;
+        uint256 unlockAmount = 10_000_000 ;
+        uint256 totalAmount = 100_000_000;
+
+        // Register a vesting schedule with a total amount of 100 tokens
+        mockVesting.registerVestingSchedule(address(1), startTime, cliffTime, endTime, unlockAmount, totalAmount);
+
+        // Verify the total amount of tokens in the vesting schedule
+        // VestingSchedule memory schedule = mockVesting.getVestingSchedule(address(1));
+
+        vm.warp(startTime + 50 days); 
+        vm.prank(address(1));
+        uint amount = mockVesting.withdraw();
+        // console2.log("amount: ", amount);
+        assertEq(amount, totalAmount/2, "User did not receive the correct amount at this point in time");
+    }
+
     function checkVestingSchedule(address account, uint256 cliffPeriod, uint256 monthlyVestingPercentage, uint256 unlockAmount) public view {
         VestingSchedule memory schedule = vestingWallet.getVestingSchedule(account);
 
@@ -257,6 +276,8 @@ contract VestingWalletTest is Test {
             assertEq(amount, expectedAmount, "User did not receive the correct amount at this point in time");
         }
     }
+
+    
 
 }
 

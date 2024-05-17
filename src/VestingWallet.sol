@@ -90,7 +90,7 @@ contract VestingWallet is Ownable, ReentrancyGuard {
             // Calculate the linearly vested amount considering the time elapsed since the cliff.
             uint256 timeSinceCliff = block.timestamp - schedule.cliffTimeInSec;
             uint256 vestingDuration = schedule.endTimeInSec - schedule.cliffTimeInSec;
-            uint256 linearVestingAmount = schedule.totalAmount * timeSinceCliff / vestingDuration;
+            uint256 linearVestingAmount = (schedule.totalAmount - schedule.unlockAmount) * timeSinceCliff / vestingDuration;
 
             // Total vested amount includes the initial unlock plus linearly vested amount.
             uint256 totalVested = schedule.unlockAmount + linearVestingAmount;
