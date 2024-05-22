@@ -11,7 +11,7 @@ contract ContractDeployments is Script {
     StakingRewards public stakingRewards;
     VestingWallet public vestingWallet;
 
-    function setUp() public {
+    function run() public broadcaster {
         optixToken = new OptixToken();
         vestingWallet = new VestingWallet();
         stakingRewards = new StakingRewards(address(optixToken),address(optixToken));
@@ -20,10 +20,12 @@ contract ContractDeployments is Script {
         address liquidityTokens = address(0xA4747D8FE7e0Be4962ca376E4c33295110781A81);
 
         optixToken.initialize(address(vestingWallet), publicTokens, liquidityTokens);
-        vestingWallet.initialize(address(optixToken), address(stakingRewards));
+        vestingWallet.initialize(address(optixToken));
     }
 
-    function run() public {
-        vm.broadcast();
+    modifier broadcaster() {
+        vm.startBroadcast();
+        _;
+        vm.stopBroadcast();
     }
 }

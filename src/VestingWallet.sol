@@ -4,7 +4,6 @@ pragma solidity 0.8.20;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {StakingRewards} from "src/StakingRewards.sol";
 
 /// @notice Struct defining a vesting schedule
 /// @dev Contains all the parameters necessary for calculating vested amounts
@@ -37,7 +36,6 @@ contract VestingWallet is Ownable, ReentrancyGuard {
     mapping(address => address) public addressChangeRequests; // Requested address changes
 
     IERC20 vestingToken;    // Token that will be vested
-    IStaking stakingContract;
 
     /* ========== CONSTRUCTOR & INITIALIZATION ========== */
 
@@ -45,10 +43,9 @@ contract VestingWallet is Ownable, ReentrancyGuard {
     constructor() Ownable(msg.sender) {
     }
 
-    function initialize(address _vestingToken, address _stakingContract) public onlyOwner {
+    function initialize(address _vestingToken) public onlyOwner {
         require(!isInitialized, 'Contract is already initialized!');
         vestingToken = IERC20(_vestingToken);
-        stakingContract = IStaking(_stakingContract);
 
         require(vestingToken.balanceOf(address(this)) > 0, 'Vesting wallet has no tokens!');
         maxSupply = vestingToken.balanceOf(address(this));

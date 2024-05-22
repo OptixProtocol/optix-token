@@ -64,13 +64,13 @@ contract VestingWalletTest is Test {
         stakingRewards = new StakingRewards(address(optixToken), address(optixToken));
 
         optixToken.initialize(address(vestingWallet), publicTokensUser, liquidityTokensUser);
-        vestingWallet.initialize(address(optixToken), address(stakingRewards));
+        vestingWallet.initialize(address(optixToken));
 
         //for testing boundary ranges
         mockToken = new MockERC20("Mock", "MCK", mockDecimals);
         mockVesting = new VestingWallet();
         mockToken.mint(address(mockVesting), mockTotalSupply * 10 ** mockDecimals);
-        mockVesting.initialize(address(mockToken), address(stakingRewards));
+        mockVesting.initialize(address(mockToken));
     }
 
     function test_VW_InitialBalanceAndSupply() public {
