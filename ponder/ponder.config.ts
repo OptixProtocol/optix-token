@@ -13,7 +13,7 @@ export default createConfig({
     ERC20: {
       network: "anvil",
       abi: erc20ABI,
-      address: "0xF32D39ff9f6Aa7a7A64d7a4F00a54826Ef791a55",
+      address: "0xFD6F7A6a5c21A3f503EBaE7a473639974379c351",
       startBlock: 0,
     },
   },
